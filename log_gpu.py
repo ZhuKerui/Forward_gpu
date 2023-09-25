@@ -27,6 +27,8 @@ def get_gpu_sum(s:str):
         gpu_sum[gpu_id]['util'] = util
         
     for pid in pids:
+        if 'No running processes found' in pid:
+            break
         pid_data = pid.strip('| ').split()
         gpu_id = pid_data[0]
         pid_id = pid_data[3]
