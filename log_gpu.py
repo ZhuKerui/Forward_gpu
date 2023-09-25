@@ -71,7 +71,7 @@ while True:
         gpu_utils = defaultdict(list)
         gpu_mem_useds = defaultdict(list)
 
-        with open('test.json', 'w') as f_out:
+        with open('log.json', 'w') as f_out:
             json.dump(gpu_log, f_out)
         
     time.sleep(10)
