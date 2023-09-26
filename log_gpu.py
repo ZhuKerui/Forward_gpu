@@ -4,6 +4,7 @@ import time
 from statistics import mean
 from datetime import datetime
 import json
+import os
 
 def get_gpu_sum(s:str):
     s = s.strip().split('|===============================+======================+======================|')[1]
@@ -41,7 +42,11 @@ gpu_utils = defaultdict(list)
 gpu_mem_useds = defaultdict(list)
 gpu_mem_alls = defaultdict(int)
 
-gpu_log = defaultdict(lambda: {'util': [], 'mem_used': [], 'd': [], 'h': [], 'mem_all': 0})
+if os.path.exists('log.json'):
+    with open('log.json') as f_in:
+        gpu_log:dict = json.load(f_in)
+else:
+    gpu_log = defaultdict(lambda: {'util': [], 'mem_used': [], 'y': [], 'm': [], 'd': [], 'h': [], 'mem_all': 0})
 
 while True:
     result = subprocess.run('nvidia-smi', stdout=subprocess.PIPE)
@@ -58,6 +63,8 @@ while True:
             gpu_log[gpu_id]['util'].append(mean(gpu_utils[gpu_id]))
             gpu_log[gpu_id]['mem_used'].append(mean(gpu_mem_useds[gpu_id]))
             gpu_log[gpu_id]['mem_all'] = gpu_mem_alls[gpu_id]
+            gpu_log[gpu_id]['y'].append(dt.year)
+            gpu_log[gpu_id]['m'].append(dt.month)
             gpu_log[gpu_id]['d'].append(dt.day)
             gpu_log[gpu_id]['h'].append(dt.hour)
             
