@@ -9,12 +9,12 @@ with open('log.json') as f_in:
     gpu_log:dict = json.load(f_in)
 
 df = pd.concat([pd.DataFrame({
-    'avg (%)': gpu_log_['util'] + [mem_used / gpu_log_['mem_all'] * 100 for mem_used in gpu_log_['mem_used']], 
+    'usage (%)': gpu_log_['util'] + [mem_used / gpu_log_['mem_all'] * 100 for mem_used in gpu_log_['mem_used']], 
     'resource': (['util'] * len(gpu_log_['util'])) + (['mem_use'] * len(gpu_log_['util'])),
     'time': [datetime(y, m, d, h).isoformat() for y, m, d, h in zip(gpu_log_['y'], gpu_log_['m'], gpu_log_['d'], gpu_log_['h'])] * 2, 
     'gpu_id': k}) for k, gpu_log_ in gpu_log.items()])
 
-fig = px.histogram(df, x="time", y='avg (%)', histfunc='avg', facet_col='gpu_id', facet_row='resource')
+fig = px.histogram(df, x="time", y='usage (%)', histfunc='avg', facet_col='gpu_id', facet_row='resource')
 fig.update_layout(bargap=0.2)
 
 
