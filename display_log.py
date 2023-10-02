@@ -4,25 +4,95 @@ from dash import Dash, dcc, html, Input, Output
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+import sys
+import pexpect
+import time
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from collections import defaultdict
 
-with open('log.json') as f_in:
-    gpu_log:dict = json.load(f_in)
+ip_map = {
+    'falcon': 'falcon.cs.illinois.edu',
+    'owl': 'owl.cs.illinois.edu',
+    'owl2': 'owl2.cs.illinois.edu',
+    'owl3': 'owl3.cs.illinois.edu',
+    'osprey1': 'osprey1.csl.illinois.edu',
+    'osprey2': 'osprey2.csl.illinois.edu'
+}
 
-df = pd.concat([pd.DataFrame({
-    'usage (%)': gpu_log_['util'] + [mem_used / gpu_log_['mem_all'] * 100 for mem_used in gpu_log_['mem_used']], 
-    'resource': (['util'] * len(gpu_log_['util'])) + (['mem_use'] * len(gpu_log_['util'])),
-    'time': [datetime(y, m, d, h).isoformat() for y, m, d, h in zip(gpu_log_['y'], gpu_log_['m'], gpu_log_['d'], gpu_log_['h'])] * 2, 
-    'gpu_id': k}) for k, gpu_log_ in gpu_log.items()])
+netid = input('Your netid: ')
+password = input('Your netid password: ')
 
-fig = px.histogram(df, x="time", y='usage (%)', histfunc='avg', facet_col='gpu_id', facet_row='resource')
-fig.update_layout(bargap=0.2)
+servers = [server.lower() for server in sys.argv[1:]]
+if not servers:
+    servers = list(ip_map.keys())
+    
+layout = []
+for server in servers:
+    child = pexpect.spawn(f'scp {netid}@{ip_map[server]}:/scratch/Forward_gpu/log.json /scratch/Forward_gpu/{server}_log.json')
+    choice = child.expect([f"{netid}@{ip_map[server]}'s password:", '.*Are you sure you want to continue connecting.*'])
+    print(choice)
+    if choice == 0:
+        child.sendline(password)
+    else:
+        child.sendline('yes')
+        child.expect(f"{netid}@{ip_map[server]}'s password:")
+        child.sendline(password)
+    time.sleep(3)
+
+    with open(f'{server}_log.json') as f_in:
+        gpu_log:dict = json.load(f_in)
+
+    df = pd.concat([pd.DataFrame({
+        'usage (%)': gpu_log_['util'] + [mem_used / gpu_log_['mem_all'] * 100 for mem_used in gpu_log_['mem_used']], 
+        'resource': (['util'] * len(gpu_log_['util'])) + (['mem_use'] * len(gpu_log_['util'])),
+        'time': [datetime(y, m, d, h).isoformat() for y, m, d, h in zip(gpu_log_['y'], gpu_log_['m'], gpu_log_['d'], gpu_log_['h'])] * 2, 
+        'gpu_id': gpu_id}) for gpu_id, gpu_log_ in gpu_log.items()])
+
+    fig = px.histogram(df, x="time", y='usage (%)', histfunc='avg', facet_col='gpu_id', facet_row='resource')
+    fig.update_layout(bargap=0.2)
+    
+    layout.append(html.H2(server.capitalize()))
+    layout.append(dcc.Graph(figure=fig))
+
+    for gpu_id, gpu_log_ in gpu_log.items():
+        hours = [1, 8, 24, 72]
+        labels = []
+        values = []
+        is_enoughs = []
+        p: dict
+        for step_num in [60 * h for h in hours]:
+            user2mem = defaultdict(int)
+            cnt = 0
+            for p in gpu_log_['p'][-step_num:]:
+                if p == 0:
+                    continue
+                cnt += 1
+                unused = gpu_log_['mem_all']
+                for user, mem_use in p.items():
+                    user2mem[user] += mem_use
+                    unused -= mem_use
+                user2mem['Unused'] += unused
+            labels_per_plot, values_per_plot = list(zip(*user2mem.items()))
+            labels.append(labels_per_plot)
+            values.append(values_per_plot)
+            is_enoughs.append(cnt == step_num)
+            
+        fig = make_subplots(rows=1, cols=len(hours), specs=[[{'type':'domain'}] * len(hours)], 
+                            subplot_titles=["GPU memory users in last %dh." % h for h in hours])
+        for i, (labels_per_plot, values_per_plot, is_enough) in enumerate(zip(labels, values, is_enoughs)):
+            if is_enough:
+                fig.add_trace(go.Pie(labels=labels_per_plot, values=values_per_plot),
+                            1, 1 + i)
+
+        fig.update_traces(hoverinfo="label+percent+name")
+        fig.update_layout(title_text = 'GPU %s' % gpu_id)
+        layout.append(dcc.Graph(figure=fig))
 
 
 app = Dash(__name__)
 
-app.layout = html.Div([
-    dcc.Graph(id="graph", figure=fig),
-])
+app.layout = html.Div(layout)
 
 
-app.run_server(debug=True)
+app.run_server()
