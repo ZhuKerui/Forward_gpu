@@ -34,7 +34,11 @@ def get_gpu_sum(s:str):
         gpu_id = pid_data[0]
         pid_id = pid_data[3]
         memory = int(pid_data[-1].split('MiB')[0])
-        gpu_sum[gpu_id]['p'].append((subprocess.run(['ps', 'u', pid_id], stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')[1].split()[0], memory))
+        try:
+            user = subprocess.run(['ps', 'u', pid_id], stdout=subprocess.PIPE).stdout.decode('utf-8').split('\n')[1].split()[0]
+            gpu_sum[gpu_id]['p'].append((user, memory))
+        except:
+            print('Process has been killed.')
     return gpu_sum
 
 
