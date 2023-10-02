@@ -1,6 +1,6 @@
 
 import json
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, callback
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
@@ -31,7 +31,6 @@ layout = []
 for server in servers:
     child = pexpect.spawn(f'scp {netid}@{ip_map[server]}:/scratch/Forward_gpu/log.json /scratch/Forward_gpu/{server}_log.json')
     choice = child.expect([f"{netid}@{ip_map[server]}'s password:", '.*Are you sure you want to continue connecting.*'])
-    print(choice)
     if choice == 0:
         child.sendline(password)
     else:
@@ -52,8 +51,9 @@ for server in servers:
     fig = px.histogram(df, x="time", y='usage (%)', histfunc='avg', facet_col='gpu_id', facet_row='resource')
     fig.update_layout(bargap=0.2)
     
-    layout.append(html.H2(server.capitalize()))
-    layout.append(dcc.Graph(figure=fig))
+    layout.append(html.Button(html.H2(server.capitalize()), "%s_button" % server, 0, style={'width': '100%'}))
+    sub_dash = []
+    sub_dash.append(dcc.Graph(figure=fig))
 
     for gpu_id, gpu_log_ in gpu_log.items():
         hours = [1, 8, 24, 72]
@@ -87,12 +87,20 @@ for server in servers:
 
         fig.update_traces(hoverinfo="label+percent+name")
         fig.update_layout(title_text = 'GPU %s' % gpu_id)
-        layout.append(dcc.Graph(figure=fig))
-
+        sub_dash.append(dcc.Graph(figure=fig))
+    layout.append(html.Div(sub_dash, "%s_collapse" % server))
 
 app = Dash(__name__)
 
 app.layout = html.Div(layout)
 
+@callback(
+    [Output("%s_collapse" % server, "style") for server in servers],
+    [Input("%s_button" % server, "n_clicks") for server in servers]
+)
+def toggle_collapse(*args):
+    return [{'display': 'block' if num_clicks % 2 else 'none'}  for num_clicks in args]
+        
+    # return {'display': 'block', 'border': '2px black solid'} if num_clicks1 % 2 else {'display': 'none', 'border': '2px black solid'}, {'display': 'block', 'border': '2px black solid'} if num_clicks2 % 2 else {'display': 'none', 'border': '2px black solid'}
 
 app.run_server()
