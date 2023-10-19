@@ -103,4 +103,4 @@ def toggle_collapse(*args):
         
     # return {'display': 'block', 'border': '2px black solid'} if num_clicks1 % 2 else {'display': 'none', 'border': '2px black solid'}, {'display': 'block', 'border': '2px black solid'} if num_clicks2 % 2 else {'display': 'none', 'border': '2px black solid'}
 
-app.run_server()
+app.run_server(port='8049')
